@@ -2,8 +2,10 @@
 #include "RF24.h"
 #include <string.h>
 
-#define CE_PIN 9
-#define CSN_PIN 10
+#define CE_PIN 7
+#define CSN_PIN 8
+//#define CE_PIN 9
+//#define CSN_PIN 10
 
 bool radioNumber = 0;
 
@@ -16,7 +18,7 @@ char inbuf[32];
 
 void setup() {
   Serial.begin(115200);
-  Serial1.begin(31250);
+  //Serial1.begin(31250);
   //Serial1.println(F("RF24"));
   
   radio.begin();
@@ -34,9 +36,9 @@ int tick = 0;
 char sbuf[64];
 
 void noteOn(int cmd, int pitch, int velocity) {
-  Serial1.write(cmd);
-  Serial1.write(pitch);
-  Serial1.write(velocity);
+  //Serial1.write(cmd);
+  //Serial1.write(pitch);
+  //Serial1.write(velocity);
   
   sprintf(sbuf,"%d,%d,%d\r\n",cmd,pitch,velocity);
   Serial.write(sbuf);
@@ -44,17 +46,23 @@ void noteOn(int cmd, int pitch, int velocity) {
 
 int lastv1 = 0;
 int lastv2 = 0;
+int lastv3 = 0;
+int lastv4 = 0;
 
 void controlChange(int channel, int controller, int value) {
   if (lastv1==value && controller==1) return;
   if (lastv2==value && controller==2) return;
+  if (lastv3==value && controller==3) return;
+  if (lastv4==value && controller==4) return;
 
-  Serial1.write(0xb0+channel);
-  Serial1.write(controller);
-  Serial1.write(value);
+  //Serial1.write(0xb0+channel);
+  //Serial1.write(controller);
+  //Serial1.write(value);
 
   if (controller==1) lastv1=value;
   if (controller==2) lastv2=value;
+  if (controller==3) lastv3=value;
+  if (controller==4) lastv4=value;
   
   sprintf(sbuf,"%d,%d,%d\r\n",0xb0+channel,controller,value);
   Serial.write(sbuf);
@@ -72,12 +80,18 @@ void loop() {
   
   memset(inbuf,0,32);
   radio.read(inbuf, 32);
-  //Serial.print(inbuf);
   tick++;
+  
+  Serial.print(inbuf);
+
+  // left leg: 2
+  // right leg: 0 yes
+  // left arm: 3
+  // right arm: 1 yes
   
   if (inbuf[0]!=0) {
     sscanf(inbuf, "%d\t%d\t%d\t%d", &sensor, &x,&y,&z);
-
+    
     if (sensor==0) {
       dy=abs(y-ly);
       dy1=dy;
@@ -111,16 +125,21 @@ void loop() {
           noteOn(0x90, ynote, 0x00);
         }
       }
-    }
-
-    if (sensor==1) {
+      
+      controlChange(0, 1, 64+y/100);
+    } else if (sensor==1) {
       //Serial.println(x/100);
       //controlChange(0, 1, 64+x/100);
-      controlChange(0, 1, 64+y/100);
-      controlChange(0, 2, 64+z/100);
+      //controlChange(0, 1, 64+y/100);
+      controlChange(0, 2, 64+y/100);
+      // right arm
       s2note=0x30+(y/1000);
+    } else if (sensor==2) {
+      controlChange(0, 3, 64+y/100);
+    } else if (sensor==3) {
+      controlChange(0, 4, 64+y/100);
     }
-
+    
     //Serial.print(inbuf);
   }
 }

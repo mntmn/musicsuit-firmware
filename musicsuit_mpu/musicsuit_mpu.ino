@@ -17,18 +17,24 @@
 #include <SPI.h>
 #include "RF24.h"
 
-bool radioNumber = 1;
+#define CE_PIN 9
+#define CSN_PIN 10
+
+//bool radioNumber = 1;
 
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
 // AD0 low = 0x68 (default for SparkFun breakout and InvenSense evaluation board)
 // AD0 high = 0x69
 
-MPU6050 mpuA(0x68);
+MPU6050 mpuA(0x69);
 MPU6050 mpuB(0x69); // <-- use for AD0 high
-#define NUM_MPUS 2
+MPU6050 mpuC(0x69);
+MPU6050 mpuD(0x69);
+#define NUM_MPUS 4
 
-MPU6050* mpus[NUM_MPUS] = {&mpuA,&mpuB};
+MPU6050* mpus[] = {&mpuA,&mpuB,&mpuC,&mpuD};
+int mpuOnline[] = {0,0,0,0};
 
 /* =========================================================================
    NOTE: In addition to connection 3.3v, GND, SDA, and SCL, this sketch
@@ -68,10 +74,29 @@ void dmpDataReady() {
 
 #define NOT_AN_INTERRUPT -1
 
-RF24 radio(7,8);
+//RF24 radio(7,8);
+RF24 radio(CE_PIN,CSN_PIN);
 byte addresses[][6] = {"1Node","2Node"};
 
+char outbuf[32];
+int tick=0;
+
 void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  pinMode(4, OUTPUT);
+  pinMode(5, OUTPUT);
+  pinMode(6, OUTPUT);
+  pinMode(7, OUTPUT);
+
+  digitalWrite(4,LOW);
+  digitalWrite(5,LOW);
+  digitalWrite(6,LOW);
+  digitalWrite(7,LOW);
+
+  digitalWrite(LED_PIN, HIGH);
+  
   Serial.begin(115200);
     
   radio.begin();
@@ -80,6 +105,7 @@ void setup() {
   radio.openReadingPipe(1,addresses[0]);
   
   radio.write("I2C 400khz\r\n",13);
+
   Fastwire::setup(400, true);
   
   //pinMode(INTERRUPT_PIN, INPUT);
@@ -94,52 +120,75 @@ void setup() {
   //mpuIntStatus = mpu.getIntStatus();
   // get expected DMP packet size for later comparison
 
-
-  pinMode(LED_PIN, OUTPUT);
   
   for (int i=0; i<NUM_MPUS; i++) {
-    MPU6050* mpu = mpus[i];
-    mpu->initialize();
-    devStatus = mpu->dmpInitialize();
+    if (true) {
+      digitalWrite(4+i,HIGH);
+      delay(200);
+      MPU6050* mpu = mpus[i];
+      mpu->initialize();
+      devStatus = mpu->dmpInitialize();
+      mpuOnline[i] = !devStatus;
+
+      if (devStatus==0) {
+        mpu->setXGyroOffset(220);
+        mpu->setYGyroOffset(76);
+        mpu->setZGyroOffset(-85);
+        mpu->setZAccelOffset(1788);
     
-    mpu->setXGyroOffset(220);
-    mpu->setYGyroOffset(76);
-    mpu->setZGyroOffset(-85);
-    mpu->setZAccelOffset(1788);
-    
-    mpu->setDMPEnabled(true);
-    packetSize = mpu->dmpGetFIFOPacketSize();
+        mpu->setDMPEnabled(true);
+        packetSize = mpu->dmpGetFIFOPacketSize();
+      }
+      
+      digitalWrite(4+i,LOW);
+      delay(200);
+
+      memset(outbuf,0,32);
+      sprintf(outbuf,"sensor %d: %d\r\n",i,devStatus);
+      radio.write(outbuf,32);
+    }
   }
+  delay(1000);
 }
-
-char outbuf[32];
-int tick=0;
-
+  
 void loop() {
   for (int i=0; i<NUM_MPUS; i++) {
-    MPU6050* mpu = mpus[i];
-    int fifoCount = mpu->getFIFOCount();
-    if (fifoCount >= 1024) {
-      mpu->resetFIFO();
-    } else {
-      while (fifoCount < packetSize) {
-        fifoCount = mpu->getFIFOCount();
+    if (mpuOnline[i]) {
+      MPU6050* mpu = mpus[i];
+      digitalWrite(4+i,HIGH);
+      delay(1);
+      int fifoCount = mpu->getFIFOCount();
+      if (fifoCount >= 1024) {
+        mpu->resetFIFO();
+      } else {
+        while (fifoCount < packetSize) {
+          fifoCount = mpu->getFIFOCount();
+        }
+
+        mpu->getFIFOBytes(fifoBuffer, packetSize);
+        fifoCount -= packetSize;
+
+        // display Euler angles in degrees
+        mpu->dmpGetQuaternion(&q, fifoBuffer);
+        mpu->dmpGetGravity(&gravity, &q);
+        mpu->dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+        digitalWrite(4+i,LOW);
+        
+        memset(outbuf,0,32);
+        sprintf(outbuf,"%d\t%d\t%d\t%d\r\n",
+                i,
+                int(100 * ypr[0] * 180/M_PI),
+                int(100 * ypr[1] * 180/M_PI),
+                int(100 * ypr[2] * 180/M_PI));
+        radio.write(outbuf, 32);
+      
+        //digitalWrite(LED_PIN,(oldypr!=ypr[0]));
+        //Serial.println(outbuf);
+        //Serial.print(int(100 * ypr[0] * 180/M_PI));
       }
-
-      mpu->getFIFOBytes(fifoBuffer, packetSize);
-      fifoCount -= packetSize;
-
-      // display Euler angles in degrees
-      mpu->dmpGetQuaternion(&q, fifoBuffer);
-      mpu->dmpGetGravity(&gravity, &q);
-      mpu->dmpGetYawPitchRoll(ypr, &q, &gravity);
-      memset(outbuf,0,32);
-      sprintf(outbuf,"%d\t%d\t%d\t%d\r\n",
-              i,
-              int(100 * ypr[0] * 180/M_PI),
-              int(100 * ypr[1] * 180/M_PI),
-              int(100 * ypr[2] * 180/M_PI));
-      radio.write(outbuf, 32);
+      digitalWrite(4+i,LOW);
+      delay(2);
     }
   }
 }

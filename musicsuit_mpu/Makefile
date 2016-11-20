@@ -9,7 +9,7 @@ PROJECT_DIR       = $(CURDIR)
 ### Path to where the your project's libraries are stored.
 USER_LIB_PATH    :=  $(ARDUINO_DIR)/libraries
 
-BOARD_TAG         = nano328
+BOARD_TAG         = micro
 
 MONITOR_BAUDRATE  = 115200
 
@@ -21,7 +21,7 @@ CFLAGS_STD        = -std=gnu11
 ### Set the C++ standard to be used during compilation. Documentation (https://github.com/WeAreLeka/Arduino-Makefile/blob/std-flags/arduino-mk-vars.md#cxxflags_std)
 CXXFLAGS_STD      = -std=gnu++11
 CXXFLAGS         += -w
-MONITOR_PORT      = /dev/ttyUSB0
+MONITOR_PORT      = /dev/ttyACM0
 
 ### -pedantic  -Wextra
 
