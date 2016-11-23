@@ -174,13 +174,20 @@ void loop() {
         mpu->dmpGetYawPitchRoll(ypr, &q, &gravity);
 
         digitalWrite(4+i,LOW);
-        
+
         memset(outbuf,0,32);
-        sprintf(outbuf,"%d\t%d\t%d\t%d\r\n",
+        /*sprintf(outbuf,"%d\t%d\t%d\t%d\r\n",
                 i,
                 int(100 * ypr[0] * 180/M_PI),
                 int(100 * ypr[1] * 180/M_PI),
-                int(100 * ypr[2] * 180/M_PI));
+                int(100 * ypr[2] * 180/M_PI));*/
+        sprintf(outbuf,"%d\t%d\t%d\t%d\t%d\r\n",
+                i,
+                int(100*q.w),
+                int(100*q.x),
+                int(100*q.y),
+                int(100*q.z)
+          );
         radio.write(outbuf, 32);
       
         //digitalWrite(LED_PIN,(oldypr!=ypr[0]));

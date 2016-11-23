@@ -84,12 +84,17 @@ void loop() {
   
   Serial.print(inbuf);
 
+  /*
+    x range: ~ -17000..17000
+    y range: ~ -9000(bottom)..9000(top)
+  */
+
   // left leg: 2
   // right leg: 0 yes
   // left arm: 3
   // right arm: 1 yes
   
-  if (inbuf[0]!=0) {
+  /*if (inbuf[0]!=0) {
     sscanf(inbuf, "%d\t%d\t%d\t%d", &sensor, &x,&y,&z);
     
     if (sensor==0) {
@@ -104,25 +109,39 @@ void loop() {
       
       ly=y;
 
+      //Serial.print(dy);
+      //Serial.print("\r\n");
+      
       if (ystate==0) {
-        if (avg4>2) {
+
+        if (dy>100) {
+          stcount++;
+        } else {
+          stcount=0;
+        }
+        
+        if (stcount>4) {
           ystate=1;
+          stcount=0;
           ynote=s2note; //noteseq[ynoteidx]; //+((x/10)%3);
           //ynoteidx%=noteseqlen;
           noteOn(0x90, ynote, 0x7f);
+          //Serial.print("note on\r\n");
         }
       } else if (ystate==1) {
         //Serial.println(avg4);
-        if (abs(avg4)<1) {
+        if (dy<100) {
           stcount++;
         } else {
           stcount=0;
         }
 
-        if (stcount>8) {
+        // note off
+        if (stcount>4) {
           ystate=0;
           stcount=0;
           noteOn(0x90, ynote, 0x00);
+          //Serial.print("note off\r\n");
         }
       }
       
@@ -131,7 +150,7 @@ void loop() {
       //Serial.println(x/100);
       //controlChange(0, 1, 64+x/100);
       //controlChange(0, 1, 64+y/100);
-      controlChange(0, 2, 64+y/100);
+      controlChange(0, 87, 127-(64+y/100));
       // right arm
       s2note=0x30+(y/1000);
     } else if (sensor==2) {
@@ -141,5 +160,5 @@ void loop() {
     }
     
     //Serial.print(inbuf);
-  }
+  }*/
 }
